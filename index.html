@@ -667,6 +667,19 @@ async function sendMessage() {
   const text = input.value.trim();
   if (!text && attachments.length === 0) return;
  
+  // זיהוי פקודת מחיקה
+  const deleteCommands = ['מחק שיחה', 'מחק הכל', 'התחל מחדש', 'נקה שיחה', 'reset'];
+  if (deleteCommands.some(cmd => text.toLowerCase().includes(cmd.toLowerCase()))) {
+    deleteUserData(userName);
+    history = [];
+    summary = '';
+    document.getElementById('messages').innerHTML = '<div class="empty-state" id="empty-state"><div class="empty-name">שיחה חדשה</div><div class="empty-hint">הכל נמחק.</div></div>';
+    input.value = ''; input.style.height = 'auto';
+    attachments = []; renderPreviews();
+    setTimeout(() => addMessage('tishi', 'השיחה נמחקה. אפשר להתחיל מחדש.'), 300);
+    return;
+  }
+ 
   // הסתרת empty state
   document.getElementById('empty-state').style.display = 'none';
  
@@ -1012,4 +1025,3 @@ if ('serviceWorker' in navigator) {
 </script>
 </body>
 </html>
- 
