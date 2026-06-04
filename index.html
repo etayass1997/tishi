@@ -867,11 +867,11 @@ async function createDownloadBtn(file) {
   if (ext === 'docx') {
     wrap.innerHTML = `<button class="file-download" onclick="downloadDocx(${JSON.stringify(file.name)}, ${JSON.stringify(file.content)})">${icon} הורד ${file.name}</button>`;
   } else if (ext === 'pdf') {
-    wrap.innerHTML = `<button class="file-download" onclick="downloadPdf(${JSON.stringify(file.name)}, ${JSON.stringify(file.content)})">${icon} הורד ${file.name}</button>`;
+    wrap.innerHTML = `<button class="file-download" onclick="downloadPdfServer(${JSON.stringify(file.name)}, ${JSON.stringify(file.content)})">${icon} הורד ${file.name}</button>`;
   } else {
-    const mimes = { txt:'text/plain', md:'text/markdown', csv:'text/csv', html:'text/html', json:'application/json' };
-    const mime = mimes[ext] || 'text/plain';
-    const blob = new Blob([file.content], { type: mime });
+    const mimes = { txt:'text/plain;charset=utf-8', md:'text/markdown;charset=utf-8', csv:'text/csv;charset=utf-8', html:'text/html;charset=utf-8', json:'application/json;charset=utf-8' };
+    const mime = mimes[ext] || 'text/plain;charset=utf-8';
+    const blob = new Blob(['﻿' + file.content], { type: mime });
     const url = URL.createObjectURL(blob);
     wrap.innerHTML = `<a class="file-download" href="${url}" download="${file.name}">${icon} הורד ${file.name}</a>`;
   }
