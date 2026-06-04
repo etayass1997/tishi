@@ -475,7 +475,7 @@ function enterChat() {
   document.getElementById('chat').classList.remove('hidden');
  
   // טעינת הגדרות מודל
-  const savedModel = localStorage.getItem('tishi_model') || 'gemini';
+  const savedModel = localStorage.getItem('tishi_model') || 'claude';
   currentModel = savedModel;
  
   const saved = loadHistory(userName);
@@ -702,7 +702,7 @@ async function callGemini(hist, user) {
   const res = await fetch(`${SERVER_URL}/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messages: hist, username: user, model: 'gemini' })
+    body: JSON.stringify({ messages: hist, username: user, model: currentModel || 'claude' })
   });
   const data = await res.json();
   if (data.error) throw new Error(data.error);
@@ -724,7 +724,7 @@ async function callClaude(hist, user) {
 // ── SETTINGS ──
 function openSettings() {
   // טעינת ערכים קיימים
-  const savedModel = localStorage.getItem('tishi_model') || 'gemini';
+  const savedModel = localStorage.getItem('tishi_model') || 'claude';
   selectModel(savedModel, false);
   const gk = localStorage.getItem('tishi_gemini_key') || '';
   const ck = localStorage.getItem('tishi_claude_key') || '';
