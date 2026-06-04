@@ -9,6 +9,8 @@
 <meta name="apple-mobile-web-app-title" content="טישי">
 <title>טישי</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/docx.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -231,6 +233,33 @@
  
   #file-input { display: none; }
  
+  /* ── FILE DOWNLOAD ── */
+  .file-download {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 16px; margin-top: 8px;
+    background: linear-gradient(135deg, #1a1508, #131310);
+    border: 1px solid var(--accent-dim); border-radius: 12px;
+    color: var(--accent); font-family: var(--font); font-size: 14px;
+    cursor: pointer; transition: opacity .2s;
+    text-decoration: none;
+  }
+  .file-download:hover { opacity: .8; }
+  .file-icon { font-size: 20px; }
+ 
+  /* ── MESSAGE ACTIONS ── */
+  .msg-actions {
+    display: flex; gap: 6px; margin-top: 4px;
+    opacity: 0; transition: opacity .2s;
+  }
+  .msg:hover .msg-actions { opacity: 1; }
+  .msg-action-btn {
+    background: none; border: 1px solid var(--border);
+    border-radius: 8px; padding: 3px 8px;
+    font-size: 11px; color: var(--text-muted);
+    cursor: pointer; transition: color .2s, border-color .2s;
+  }
+  .msg-action-btn:hover { color: var(--accent); border-color: var(--accent-dim); }
+ 
   /* ── SETTINGS SCREEN ── */
   #settings {
     background: var(--bg);
@@ -404,16 +433,24 @@ const SYSTEM_PROMPT = `אתה טישי — סוכן אישי חכם, ישיר ו
 אתה זוכר כל מה שנאמר בשיחה הנוכחית.
 אתה עונה בתמציתיות — לא מיותר, לא קצר מדי. רק מה שנחוץ.
 כשמישהו מראה לך תמונה או קובץ — אתה מתייחס אליו ישירות.
-כשמבקשים ממך ליצור קובץ — אתה כותב את התוכן בצורה מסודרת.
+כשמבקשים ממך ליצור קובץ — השתמש בפורמט הבא בדיוק:
+[FILE:שם_קובץ.סיומת]
+תוכן הקובץ כאן
+[/FILE]
+סיומות נתמכות: .txt .md .csv .html .json .docx .pdf
+לקובץ docx או pdf — כתוב תוכן מובנה עם שורות כותרת שמתחילות ב-# ורשימות עם -
 אל תציג את עצמך ואל תסביר מה אתה. פשוט היה נוכח.`;
  
 let userName = '';
 let history = [];
+let summary = ''; // סיכום השיחה הישנה
 let attachments = [];
 let mediaRecorder = null;
 let isRecording = false;
 let recognition = null;
-let currentModel = 'gemini'; // 'gemini' or 'claude'
+let currentModel = 'claude';
+const MAX_RECENT = 10; // הודעות אחרונות לשלוח
+const SUMMARIZE_EVERY = 20; // לסכם כל X הודעות
  
 // ── STORAGE ──
 const STORAGE_PREFIX = 'tishi_';
@@ -438,6 +475,53 @@ function loadHistory(user) {
     const raw = localStorage.getItem(storageKey(user, 'history'));
     return raw ? JSON.parse(raw) : [];
   } catch(e) { return []; }
+}
+ 
+function saveSummary(user, s) {
+  try { localStorage.setItem(storageKey(user, 'summary'), s); } catch(e) {}
+}
+ 
+function loadSummary(user) {
+  try { return localStorage.getItem(storageKey(user, 'summary')) || ''; } catch(e) { return ''; }
+}
+ 
+// בניית ההודעות לשליחה לשרת — רק אחרונות + סיכום
+function buildMessagesForServer() {
+  const recent = history.slice(-MAX_RECENT);
+  if (!summary) return recent;
+  // הוספת הסיכום כהודעת מערכת בתחילה
+  return [
+    { role: 'user', content: `[סיכום שיחה קודמת: ${summary}]` },
+    { role: 'assistant', content: 'מובן, אני זוכר.' },
+    ...recent
+  ];
+}
+ 
+// יצירת סיכום כל SUMMARIZE_EVERY הודעות
+async function maybeSummarize() {
+  if (history.length < SUMMARIZE_EVERY || history.length % SUMMARIZE_EVERY !== 0) return;
+  const toSummarize = history.slice(0, -MAX_RECENT);
+  if (toSummarize.length === 0) return;
+ 
+  try {
+    const res = await fetch(SERVER_URL + '/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: [
+          ...toSummarize,
+          { role: 'user', content: 'סכם בקצרה את השיחה שלנו עד כה — נקודות עיקריות בלבד, 3-4 משפטים.' }
+        ],
+        username: userName,
+        model: currentModel || 'claude'
+      })
+    });
+    const data = await res.json();
+    if (data.reply) {
+      summary = (summary ? summary + ' | ' : '') + data.reply;
+      saveSummary(userName, summary);
+    }
+  } catch(e) {}
 }
  
 function getAllUsers() {
@@ -481,6 +565,7 @@ function enterChat() {
   const saved = loadHistory(userName);
   const isReturning = saved.length > 0;
   history = saved;
+  summary = loadSummary(userName);
  
   if (isReturning) {
     document.getElementById('empty-state').style.display = 'none';
@@ -630,7 +715,7 @@ async function sendMessage() {
     history.push({ role: 'assistant', content: reply });
     addMessage('tishi', reply);
     saveHistory(userName, history);
-    speakText(reply);
+    maybeSummarize();
  
   } catch(err) {
     removeTyping(typingId);
@@ -639,12 +724,15 @@ async function sendMessage() {
 }
  
 // ── TTS ──
-function speakText(text) {
+function speakText(text, btn = null) {
   if (!('speechSynthesis' in window)) return;
-  // רק אם הטקסט קצר
-  if (text.length > 200) return;
+  window.speechSynthesis.cancel();
   const utt = new SpeechSynthesisUtterance(text);
   utt.lang = 'he-IL'; utt.rate = 1.05;
+  if (btn) {
+    btn.textContent = '⏹ עצור';
+    utt.onend = () => btn.textContent = '🔊 האזן';
+  }
   window.speechSynthesis.speak(utt);
 }
  
@@ -665,17 +753,64 @@ function addMessage(role, text, images = []) {
     });
   }
   if (text) {
-    const t = document.createElement('span');
-    t.textContent = text;
-    bubble.appendChild(t);
+    if (role === 'tishi') {
+      const files = parseFileBlocks(text);
+      const cleanedText = cleanText(text);
+      if (cleanedText) {
+        const t = document.createElement('span');
+        t.textContent = cleanedText;
+        bubble.appendChild(t);
+      }
+      files.forEach(async file => {
+        const btn = await createDownloadBtn(file);
+        bubble.appendChild(btn);
+      });
+    } else {
+      const t = document.createElement('span');
+      t.textContent = text;
+      bubble.appendChild(t);
+    }
   }
  
   const time = document.createElement('div');
   time.className = 'msg-time';
   time.textContent = new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
  
+  // כפתורי פעולה
+  const actions = document.createElement('div');
+  actions.className = 'msg-actions';
+ 
+  // כפתור העתקה
+  const copyBtn = document.createElement('button');
+  copyBtn.className = 'msg-action-btn';
+  copyBtn.textContent = 'העתק';
+  copyBtn.onclick = () => {
+    navigator.clipboard.writeText(text || '').then(() => {
+      copyBtn.textContent = '✓ הועתק';
+      setTimeout(() => copyBtn.textContent = 'העתק', 2000);
+    });
+  };
+  actions.appendChild(copyBtn);
+ 
+  // כפתור האזנה (TTS) — רק להודעות טישי
+  if (role === 'tishi' && text) {
+    const ttsBtn = document.createElement('button');
+    ttsBtn.className = 'msg-action-btn';
+    ttsBtn.textContent = '🔊 האזן';
+    ttsBtn.onclick = () => {
+      if (window.speechSynthesis.speaking) {
+        window.speechSynthesis.cancel();
+        ttsBtn.textContent = '🔊 האזן';
+      } else {
+        speakText(text, ttsBtn);
+      }
+    };
+    actions.appendChild(ttsBtn);
+  }
+ 
   div.appendChild(bubble);
   div.appendChild(time);
+  div.appendChild(actions);
   msgs.appendChild(div);
   msgs.scrollTop = msgs.scrollHeight;
 }
@@ -692,6 +827,91 @@ function showTyping() {
 }
 function removeTyping(id) {
   document.getElementById(id)?.remove();
+}
+ 
+// ── FILE CREATION ──
+function parseFileBlocks(text) {
+  const regex = /\[FILE:(.*?)\]([\s\S]*?)\[\/FILE\]/g;
+  const files = [];
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    files.push({ name: match[1].trim(), content: match[2].trim() });
+  }
+  return files;
+}
+ 
+function cleanText(text) {
+  return text.replace(/\[FILE:.*?\][\s\S]*?\[\/FILE\]/g, '').trim();
+}
+ 
+async function createDownloadBtn(file) {
+  const ext = file.name.split('.').pop().toLowerCase();
+  const wrap = document.createElement('div');
+ 
+  const icons = { txt:'📄', md:'📝', csv:'📊', html:'🌐', json:'🔧', docx:'📘', pdf:'📕' };
+  const icon = icons[ext] || '📄';
+ 
+  if (ext === 'docx') {
+    wrap.innerHTML = `<button class="file-download" onclick="downloadDocx(${JSON.stringify(file.name)}, ${JSON.stringify(file.content)})">${icon} הורד ${file.name}</button>`;
+  } else if (ext === 'pdf') {
+    wrap.innerHTML = `<button class="file-download" onclick="downloadPdf(${JSON.stringify(file.name)}, ${JSON.stringify(file.content)})">${icon} הורד ${file.name}</button>`;
+  } else {
+    const mimes = { txt:'text/plain', md:'text/markdown', csv:'text/csv', html:'text/html', json:'application/json' };
+    const mime = mimes[ext] || 'text/plain';
+    const blob = new Blob([file.content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    wrap.innerHTML = `<a class="file-download" href="${url}" download="${file.name}">${icon} הורד ${file.name}</a>`;
+  }
+  return wrap;
+}
+ 
+function downloadDocx(filename, content) {
+  try {
+    const { Document, Packer, Paragraph, TextRun, HeadingLevel } = docx;
+    const lines = content.split('\n');
+    const children = lines.map(line => {
+      if (line.startsWith('# ')) return new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun(line.slice(2))] });
+      if (line.startsWith('## ')) return new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun(line.slice(3))] });
+      if (line.startsWith('- ')) return new Paragraph({ bullet: { level: 0 }, children: [new TextRun(line.slice(2))] });
+      return new Paragraph({ children: [new TextRun(line)] });
+    });
+    const doc = new Document({ sections: [{ children }] });
+    Packer.toBlob(doc).then(blob => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename; a.click();
+    });
+  } catch(e) { alert('שגיאה ביצירת Word: ' + e.message); }
+}
+ 
+function downloadPdf(filename, content) {
+  try {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    // תמיכה בעברית
+    doc.setFont('helvetica');
+    doc.setFontSize(12);
+    const lines = content.split('\n');
+    let y = 20;
+    lines.forEach(line => {
+      if (y > 270) { doc.addPage(); y = 20; }
+      if (line.startsWith('# ')) {
+        doc.setFontSize(18); doc.setFont('helvetica', 'bold');
+        doc.text(line.slice(2), 10, y);
+        doc.setFontSize(12); doc.setFont('helvetica', 'normal');
+      } else if (line.startsWith('## ')) {
+        doc.setFontSize(14); doc.setFont('helvetica', 'bold');
+        doc.text(line.slice(3), 10, y);
+        doc.setFontSize(12); doc.setFont('helvetica', 'normal');
+      } else {
+        const wrapped = doc.splitTextToSize(line || ' ', 190);
+        doc.text(wrapped, 10, y);
+        y += (wrapped.length - 1) * 7;
+      }
+      y += 8;
+    });
+    doc.save(filename);
+  } catch(e) { alert('שגיאה ביצירת PDF: ' + e.message); }
 }
  
 // ── SERVER URL ──
@@ -758,6 +978,7 @@ function clearMyChat() {
   if (!confirm('למחוק את השיחה שלך?')) return;
   deleteUserData(userName);
   history = [];
+  summary = '';
   closeSettings();
   const msgs = document.getElementById('messages');
   msgs.innerHTML = '<div class="empty-state" id="empty-state"><div class="empty-name">שיחה חדשה</div><div class="empty-hint">הכל נמחק.</div></div>';
@@ -791,3 +1012,4 @@ if ('serviceWorker' in navigator) {
 </script>
 </body>
 </html>
+ 
