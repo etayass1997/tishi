@@ -740,14 +740,43 @@ async function sendMessage() {
 function speakText(text, btn = null) {
   if (!('speechSynthesis' in window)) return;
   window.speechSynthesis.cancel();
-  const utt = new SpeechSynthesisUtterance(text);
-  utt.lang = 'he-IL'; utt.rate = 1.05;
-  if (btn) {
-    btn.textContent = '⏹ עצור';
-    utt.onend = () => btn.textContent = '🔊 האזן';
-  }
-  window.speechSynthesis.speak(utt);
+ 
+  // המתנה קצרה לפני דיבור (פתרון לבאג Chrome/Android)
+  setTimeout(() => {
+    const utt = new SpeechSynthesisUtterance(text);
+    utt.lang = 'he-IL';
+    utt.rate = 1.0;
+    utt.pitch = 1.0;
+    utt.volume = 1.0;
+ 
+    // בחירת קול עברי אם קיים
+    const voices = window.speechSynthesis.getVoices();
+    const heVoice = voices.find(v => v.lang === 'he-IL' || v.lang === 'he');
+    if (heVoice) utt.voice = heVoice;
+ 
+    if (btn) {
+      btn.textContent = '⏹ עצור';
+      utt.onend = () => { btn.textContent = '🔊 האזן'; };
+      utt.onerror = () => { btn.textContent = '🔊 האזן'; };
+    }
+ 
+    // פתרון לבאג Android שעוצר באמצע
+    const resumeInterval = setInterval(() => {
+      if (window.speechSynthesis.paused) window.speechSynthesis.resume();
+      if (!window.speechSynthesis.speaking) clearInterval(resumeInterval);
+    }, 5000);
+ 
+    utt.onend = () => {
+      clearInterval(resumeInterval);
+      if (btn) btn.textContent = '🔊 האזן';
+    };
+ 
+    window.speechSynthesis.speak(utt);
+  }, 100);
 }
+ 
+// טעינת קולות בהתחלה
+window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
  
 // ── UI HELPERS ──
 function addMessage(role, text, images = []) {
