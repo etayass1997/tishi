@@ -784,6 +784,37 @@ function downloadBubble(btn) {
   document.body.removeChild(a); URL.revokeObjectURL(url);
 }
 
+function printBubble(btn) {
+  const text = btn.closest('.msg').querySelector('.bubble').innerText || '';
+  const safe = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const html = `<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+<meta charset="UTF-8">
+<title>תישי</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  body { font-family: 'Heebo', Arial, sans-serif; direction: rtl; padding: 48px; line-height: 1.9; color: #111; font-size: 15px; max-width: 700px; margin: 0 auto; white-space: pre-wrap; }
+  @media print { body { padding: 24px; } }
+</style>
+</head>
+<body>${safe}</body>
+</html>`;
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const win = window.open(url, '_blank');
+  if (win) {
+    win.onload = () => { URL.revokeObjectURL(url); win.focus(); win.print(); };
+  } else {
+    // fallback אם popup חסום — הורד כ-HTML
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'תישי_' + new Date().toLocaleString('he-IL').replace(/[/:, ]/g, '_') + '.html';
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+  }
+}
+
 // ── UI HELPERS ──
 function addMessage(role, text, images = []) {
   const msgs = document.getElementById('messages');
@@ -819,7 +850,8 @@ function addMessage(role, text, images = []) {
     actions.innerHTML =
       `<button onclick="speakBubble(this)" title="הקרא">🔊</button>` +
       `<button onclick="copyBubble(this)" title="העתק">📋</button>` +
-      `<button onclick="downloadBubble(this)" title="הורד כקובץ">💾</button>`;
+      `<button onclick="downloadBubble(this)" title="הורד כטקסט">💾</button>` +
+      `<button onclick="printBubble(this)" title="הורד כ-PDF">📄</button>`;
     div.appendChild(actions);
   }
 
