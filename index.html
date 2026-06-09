@@ -378,27 +378,7 @@
   </div>
   <div class="settings-body">
     <div class="settings-section">
-      <div class="settings-label">מודל AI</div>
-      <div class="model-options">
-        <div class="model-option active" id="opt-gemini" onclick="selectModel('gemini')">
-          <div>
-            <div class="model-option-name">Gemini Flash</div>
-            <div class="model-option-tag">חינמי • מהיר • ברירת מחדל</div>
-          </div>
-          <div class="model-option-check">✓</div>
-        </div>
-        <div class="model-option" id="opt-claude" onclick="selectModel('claude')">
-          <div>
-            <div class="model-option-name">Claude Sonnet</div>
-            <div class="model-option-tag">בתשלום • הכי חכם</div>
-          </div>
-          <div class="model-option-check">✓</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="settings-section">
-      <div class="settings-desc" style="color:var(--accent-dim);font-size:13px;">המפתחות מנוהלים בשרת — אין צורך להכניס כלום.</div>
+      <div class="settings-desc" style="color:var(--accent-dim);font-size:13px;">מופעל על Claude Sonnet — המפתח מנוהל בשרת.</div>
     </div>
 
     <div class="settings-section">
@@ -432,7 +412,7 @@ let attachments = [];
 let mediaRecorder = null;
 let isRecording = false;
 let recognition = null;
-let currentModel = 'gemini'; // 'gemini' or 'claude'
+const currentModel = 'claude';
 
 // ── STORAGE ──
 const STORAGE_PREFIX = 'tishi_';
@@ -518,10 +498,6 @@ function enterChat() {
   document.getElementById('header-username').textContent = userName;
   document.getElementById('login').classList.add('hidden');
   document.getElementById('chat').classList.remove('hidden');
-
-  // טעינת הגדרות מודל
-  const savedModel = localStorage.getItem('tishi_model') || 'gemini';
-  currentModel = savedModel;
 
   const saved = loadHistory(userName);
   const isReturning = saved.length > 0;
@@ -731,11 +707,7 @@ async function sendMessage() {
   try {
     let reply;
 
-    if (currentModel === 'gemini') {
-      reply = await callGemini(history, userName);
-    } else {
-      reply = await callClaude(history, userName);
-    }
+    reply = await callClaude(history, userName);
 
     removeTyping(typingId);
     history.push({ role: 'assistant', content: reply });
@@ -745,7 +717,7 @@ async function sendMessage() {
 
   } catch(err) {
     removeTyping(typingId);
-    addMessage('tishi', 'לא הצלחתי להתחבר. בדוק חיבור לאינטרנט ומפתח API בהגדרות.');
+    addMessage('tishi', `שגיאה: ${err.message || 'לא הצלחתי להתחבר לשרת. בדוק חיבור לאינטרנט.'}`);
   }
 }
 
@@ -867,18 +839,6 @@ function removeTyping(id) {
 // ── SERVER URL ──
 const SERVER_URL = 'https://tishi-server.onrender.com';
 
-// ── GEMINI API (דרך השרת) ──
-async function callGemini(hist, user) {
-  const res = await fetch(`${SERVER_URL}/chat`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messages: hist, username: user, model: 'gemini', user_facts: loadUserFacts(user) })
-  });
-  const data = await res.json();
-  if (data.error) throw new Error(data.error);
-  return data.reply;
-}
-
 // ── CLAUDE API (דרך השרת) ──
 async function callClaude(hist, user) {
   const res = await fetch(`${SERVER_URL}/chat`, {
@@ -893,8 +853,6 @@ async function callClaude(hist, user) {
 
 // ── SETTINGS ──
 function openSettings() {
-  const savedModel = localStorage.getItem('tishi_model') || 'gemini';
-  selectModel(savedModel, false);
   renderFactsList();
   document.getElementById('chat').classList.add('hidden');
   document.getElementById('settings').classList.remove('hidden');
@@ -934,19 +892,9 @@ function closeSettings() {
   document.getElementById('chat').classList.remove('hidden');
 }
 
-function selectModel(model, save = true) {
-  currentModel = model;
-  document.getElementById('opt-gemini').classList.toggle('active', model === 'gemini');
-  document.getElementById('opt-claude').classList.toggle('active', model === 'claude');
-  document.getElementById('gemini-key-section').classList.toggle('hidden', model !== 'gemini');
-  document.getElementById('claude-key-section').classList.toggle('hidden', model !== 'claude');
-  if (save) localStorage.setItem('tishi_model', model);
-}
 
 function saveSettings() {
-  localStorage.setItem('tishi_model', currentModel);
   closeSettings();
-  addMessage('tishi', `עברתי ל-${currentModel === 'gemini' ? 'Gemini' : 'Claude'} ✓`);
 }
 
 function clearMyChat() {
