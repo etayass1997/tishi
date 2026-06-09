@@ -2,11 +2,12 @@
 <html lang="he" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<meta name="theme-color" content="#0f0f0f">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0d0d0d">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="תישי">
+<meta name="mobile-web-app-capable" content="yes">
 <title>תישי</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700&display=swap" rel="stylesheet">
@@ -24,6 +25,8 @@
     --tishi-bubble: #131313;
     --radius: 18px;
     --font: 'Heebo', sans-serif;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
@@ -45,6 +48,8 @@
   #login {
     align-items: center; justify-content: center; gap: 48px;
     background: radial-gradient(ellipse at 50% 30%, #1a1508 0%, var(--bg) 70%);
+    padding-top: var(--safe-top);
+    padding-bottom: var(--safe-bottom);
   }
 
   .logo-block { text-align: center; }
@@ -82,7 +87,7 @@
   #chat { background: var(--bg); }
 
   .chat-header {
-    padding: 16px 20px 14px;
+    padding: calc(16px + var(--safe-top)) 20px 14px;
     border-bottom: 1px solid var(--border);
     display: flex; align-items: center; justify-content: space-between;
     background: var(--bg);
@@ -144,7 +149,7 @@
 
   /* ── INPUT BAR ── */
   .input-bar {
-    padding: 12px 14px 20px;
+    padding: 12px 14px calc(20px + var(--safe-bottom));
     border-top: 1px solid var(--border);
     background: var(--bg);
     display: flex; align-items: flex-end; gap: 10px;

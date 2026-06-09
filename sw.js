@@ -1,22 +1,48 @@
-const CACHE = 'tishi-v1';
-const ASSETS = ['/', '/index.html'];
+const CACHE = 'tishi-v2';
+const STATIC = ['./', './index.html', './manifest.json', './icon.png'];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS).catch(() => {})));
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(STATIC).catch(() => {})));
   self.skipWaiting();
 });
 
 self.addEventListener('activate', e => {
-  e.waitUntil(caches.keys().then(keys =>
-    Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
-  ));
+  e.waitUntil(
+    caches.keys().then(keys =>
+      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
+    )
+  );
   self.clients.claim();
 });
 
 self.addEventListener('fetch', e => {
-  // רק קבצים מקומיים — קריאות API עוברות ישירות
-  if (e.request.url.includes('onrender.com') || e.request.url.includes('googleapis')) return;
+  const url = new URL(e.request.url);
+
+  // קריאות API — תמיד רשת, אף פעם לא cache
+  if (url.hostname.includes('onrender.com')) return;
+
+  // Google Fonts — cache first (עבוד offline)
+  if (url.hostname.includes('fonts.googleapis.com') || url.hostname.includes('fonts.gstatic.com')) {
+    e.respondWith(
+      caches.open(CACHE).then(cache =>
+        cache.match(e.request).then(cached =>
+          cached || fetch(e.request).then(res => {
+            cache.put(e.request, res.clone());
+            return res;
+          })
+        )
+      )
+    );
+    return;
+  }
+
+  // קבצים מקומיים — cache first, אחר כך רשת
   e.respondWith(
-    fetch(e.request).catch(() => caches.match(e.request))
+    caches.match(e.request).then(cached =>
+      cached || fetch(e.request).then(res => {
+        if (res.ok) caches.open(CACHE).then(c => c.put(e.request, res.clone()));
+        return res;
+      }).catch(() => caches.match('./index.html'))
+    )
   );
 });
