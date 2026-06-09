@@ -403,6 +403,7 @@
       <div class="danger-zone">
         <button class="btn-danger" onclick="clearMyChat()">🗑️ מחק את השיחה שלי</button>
         <button class="btn-danger" onclick="clearAllData()">⚠️ מחק את כל הנתונים (כל המשתמשים)</button>
+        <button class="btn-danger" onclick="changeUser()">👤 החלף שם משתמש</button>
       </div>
     </div>
   </div>
@@ -500,6 +501,7 @@ function enterChat() {
   const val = document.getElementById('name-input').value.trim();
   if (!val) { document.getElementById('name-input').focus(); return; }
   userName = val;
+  localStorage.setItem('tishi_username', userName);
   document.getElementById('header-username').textContent = userName;
   document.getElementById('login').classList.add('hidden');
   document.getElementById('chat').classList.remove('hidden');
@@ -520,6 +522,13 @@ function enterChat() {
   }
 }
 document.getElementById('name-input').addEventListener('keydown', e => { if (e.key === 'Enter') enterChat(); });
+
+// אם השם כבר שמור — כניסה אוטומטית
+const _savedName = localStorage.getItem('tishi_username');
+if (_savedName) {
+  document.getElementById('name-input').value = _savedName;
+  enterChat();
+}
 
 // ── TEXTAREA ──
 function autoResize(el) {
@@ -950,6 +959,12 @@ function clearAllData() {
   localStorage.removeItem('tishi_model');
   closeSettings();
   addMessage('tishi', 'כל הנתונים נמחקו.');
+}
+
+function changeUser() {
+  if (!confirm('להחליף משתמש?')) return;
+  localStorage.removeItem('tishi_username');
+  location.reload();
 }
 
 // ── CLEAR CHAT ──
