@@ -824,6 +824,40 @@ function printBubble(btn) {
   }
 }
 
+async function downloadPdfBubble(btn) {
+  const text = btn.closest('.msg').querySelector('.bubble').innerText || '';
+  const lines = text.split('\n');
+  const title = lines[0].slice(0, 60);
+  const content = lines.length > 1 ? lines.slice(1).join('\n').trim() : text;
+  const filename = 'תישי_' + new Date().toLocaleString('he-IL').replace(/[/:, ]/g, '_') + '.pdf';
+
+  const orig = btn.textContent;
+  btn.textContent = '⏳';
+  btn.disabled = true;
+
+  try {
+    const res = await fetch(`${SERVER_URL}/create-pdf`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, content, filename })
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    const a = document.createElement('a');
+    a.href = 'data:application/pdf;base64,' + data.pdf_base64;
+    a.download = data.filename || filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+
+    btn.textContent = '✓';
+    setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 2000);
+  } catch(e) {
+    btn.textContent = orig;
+    btn.disabled = false;
+    alert('שגיאה ביצירת PDF: ' + (e.message || e));
+  }
+}
+
 // ── UI HELPERS ──
 function addMessage(role, text, images = []) {
   const msgs = document.getElementById('messages');
@@ -860,7 +894,7 @@ function addMessage(role, text, images = []) {
       `<button onclick="speakBubble(this)" title="הקרא">🔊</button>` +
       `<button onclick="copyBubble(this)" title="העתק">📋</button>` +
       `<button onclick="downloadBubble(this)" title="הורד כטקסט">💾</button>` +
-      `<button onclick="printBubble(this)" title="הורד כ-PDF">📄</button>`;
+      `<button onclick="downloadPdfBubble(this)" title="הורד כ-PDF">📄</button>`;
     div.appendChild(actions);
   }
 
