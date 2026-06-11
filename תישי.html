@@ -725,9 +725,19 @@ async function sendMessage() {
 
     removeTyping(typingId);
     history.push({ role: 'assistant', content: reply });
-    addMessage('tishi', reply);
+
+    const pdfMatch = reply.match(/\[PDF:([^\]]+)\]([\s\S]*?)\[\/PDF\]/);
+    if (pdfMatch) {
+      const pdfTitle = pdfMatch[1].trim();
+      const pdfContent = pdfMatch[2].trim();
+      addMessage('tishi', `המסמך "${pdfTitle}" מוכן — מוריד...`);
+      triggerPdfDownload(pdfTitle, pdfContent);
+    } else {
+      addMessage('tishi', reply);
+      speakText(reply);
+    }
+
     saveHistory(userName, history);
-    speakText(reply);
 
   } catch(err) {
     removeTyping(typingId);
@@ -821,6 +831,25 @@ function printBubble(btn) {
     a.download = 'תישי_' + new Date().toLocaleString('he-IL').replace(/[/:, ]/g, '_') + '.html';
     document.body.appendChild(a); a.click();
     document.body.removeChild(a);
+  }
+}
+
+async function triggerPdfDownload(title, content) {
+  const filename = title.replace(/[^֐-׿\w\s]/g, '').trim().replace(/\s+/g, '_') + '.pdf';
+  try {
+    const res = await fetch(`${SERVER_URL}/create-pdf`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, content, filename })
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    const a = document.createElement('a');
+    a.href = 'data:application/pdf;base64,' + data.pdf_base64;
+    a.download = data.filename || filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  } catch(e) {
+    addMessage('tishi', `שגיאה ביצירת PDF: ${e.message || e}`);
   }
 }
 
